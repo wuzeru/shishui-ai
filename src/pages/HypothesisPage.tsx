@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Package, Users, Monitor, Banknote, Trophy, Clock, Edit2, Check, X, Wallet } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Package, Users, Monitor, Banknote, Trophy, Clock, Edit2, Check, X, Wallet, Loader2 } from 'lucide-react'
 import StepIndicator from '../components/StepIndicator'
 import { useProjectStore, type ProjectState } from '../stores/useProjectStore'
+import { startResearch } from '../api/client'
 
 type FieldKey = 'product' | 'audience' | 'platforms' | 'priceRange' | 'competitor' | 'budget' | 'timeline'
 
@@ -30,11 +31,34 @@ function getDisplayValue(key: FieldKey, h: ProjectState['hypothesis']): string {
 
 export default function HypothesisPage() {
   const navigate = useNavigate()
-  const { hypothesis, idea, updateHypothesis } = useProjectStore()
+  const { idea, budget, contentMode, advantage, hypothesis, updateHypothesis } = useProjectStore()
   const [editing, setEditing] = useState<FieldKey | null>(null)
   const [draft, setDraft] = useState('')
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
 
   if (!idea) { navigate('/'); return null }
+
+  const handleStart = async () => {
+    if (!budget || !contentMode || !advantage) return
+    setStarting(true)
+    setStartError(null)
+    try {
+      const { jobId } = await startResearch({
+        idea,
+        hypothesis: { ...hypothesis },
+        budget,
+        contentMode,
+        advantage,
+      })
+      useProjectStore.getState().setResearchJobId(jobId)
+      useProjectStore.getState().setResearchStatus('processing')
+      navigate('/report')
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : '请求失败')
+      setStarting(false)
+    }
+  }
 
   const startEdit = (key: FieldKey) => {
     setEditing(key)
@@ -171,13 +195,22 @@ export default function HypothesisPage() {
             <ArrowLeft size={16} />
             返回修改
           </button>
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={() => navigate('/report')}
-          >
-            没问题，开始调研
-            <ArrowRight size={16} />
-          </button>        </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            {startError && (
+              <span className="text-sm" style={{ color: '#dc2626' }}>{startError}</span>
+            )}
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={handleStart}
+              disabled={starting || !budget || !contentMode || !advantage}
+              style={{ opacity: starting ? 0.7 : 1 }}
+            >
+              {starting ? <><Loader2 size={16} className="animate-spin" /> 正在启动…</> : (
+                <>没问题，开始调研 <ArrowRight size={16} /></>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
